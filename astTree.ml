@@ -88,17 +88,18 @@ let rec getHeapLocation id stack =
 
 let getValue heapVal loc =
     let rec checkAll hv = 
+    print_string "???\n";
     match hv with 
         hd::tl -> 
                 ( match hd with 
                   
-                    Val,tv_ref -> (match !tv_ref with Value(v) -> Value(v)
+                    Val,tv_ref ->     print_string "!!!!\n";(match !tv_ref with Value(v) -> Value(v)
                                     | TError -> failwith "fail"
                                     )
-                    | FieldName(name),_ -> Value(VLocation(Location(Object(Int(loc)))))
+                    | FieldName(name),_ -> print_string "ppppp\n";Value(VLocation(Location(Object(Int(loc)))))
                                     
                 )
-        | [] -> Value(VLocation(Location(Object(Int(loc)))))
+        | [] -> print_string "aaaaaa\n";Value(VLocation(Location(Object(Int(loc)))))
     in 
     match heapVal with
     HeapEntry e -> checkAll !e
@@ -143,7 +144,7 @@ let setField heapVal field value=
                         | FieldName(name),tv_ref -> if name = fieldname then   (tv_ref := value ;print_string "HHHHHHH\n") else setFieldHelper tl fieldname hvref
                                         
                     )
-            | [] ->  print_string "oookkk";print_int (List.length !hvref);print_string "\n";flush stdout;hvref := (FieldName(fieldname),ref value)::!hvref;realheap := HeapEntry(hvref)::!realheap ;print_string "oookkk2";print_int (List.length !hvref);print_string "\n";()
+            | [] ->  print_string "oookkk";print_int (List.length !hvref);print_string "\n";flush stdout;hvref := (FieldName(fieldname),ref value)::!hvref;realheap := !realheap @ [HeapEntry(hvref)];print_string "oookkk2";print_int (List.length !hvref);print_string "\n";()
         in 
         (match heapVal with
         HeapEntry e -> (match field with 
@@ -152,11 +153,38 @@ let setField heapVal field value=
                         )
         )
 
+
+let rec getField heapValue field =
+    let rec getFieldHelper hv name= 
+    match hv with 
+        hd::tl -> 
+                ( match hd with 
+                  
+                    Val,tv_ref -> failwith "Error looking up heap field of an unmalloced variable"
+                    | FieldName(matchname),tv_ref -> if name = matchname then (match !tv_ref with Value(v) -> Value(v)
+                                                                                                    | TError -> failwith "fail"
+                                                                                ) else getFieldHelper tl name
+                                    
+                )
+        | [] -> Value(VLocation(Nulllocation))
+    in 
+    match field with
+    FieldName(name) -> ( match heapValue with
+                        HeapEntry e -> getFieldHelper !e name
+                       )  
+
+
+
+let rec  getHeapField pos field  myheap= 
+   match myheap with
+    hd::tl -> if pos = 0 then getField hd field else getHeapField (pos-1) field tl
+    | [] -> failwith "Error getting value"
+
+
 let rec  setHeapField pos field value myheap= 
    match myheap with
     hd::tl -> if pos = 0 then setField hd field value else setHeapField (pos-1) field value tl
     | [] -> failwith "Error setting field"
-
 
 
 
@@ -166,34 +194,12 @@ let rec getHeapValue loc myheap=
     hd::tl -> if loc = 0 then getValue hd copy else getHeapValue (loc-1) tl
     |[] -> TError
 
-let rec check_if_malloced_helper heaploc =
-    let rec checkAll hl = 
-    match hl with 
-        hd::tl -> 
-                ( match hd with 
-                  
-                    Val,tv_ref -> print_string "yyy\n";false
-                    | FieldName(name),_ -> print_string "nnn\n";true
-                                    
-                )
-        | [] -> print_string "zzzz\n";true
-    in 
-    match heaploc with
-    HeapEntry e -> print_string "aaaaaa\n";checkAll !e
-    | _ -> print_string "bbbbb\n"; false
-
-let rec check_if_malloced loc myheap=
-        print_string "ccccccc\n";
-    match myheap with 
-    hd::tl -> if loc = 0 then check_if_malloced_helper hd else check_if_malloced (loc-1) tl
-    |[] -> failwith "fail"
-
-
  let rec evalexp exp stack =
     match exp with
-    Variable(id,l) ->  let heaploc = getHeapLocation id stack in
+    Variable(id,l) ->  print_string ("looking up " ^ id ^ "\n");let heaploc = getHeapLocation id stack in
+                        print_string "and id is: " ;print_int heaploc; print_string "\n";
                         getHeapValue heaploc !realheap
-    | Procedure(id,n1,l) -> Value(VLocation(Nulllocation))
+    | Procedure(id,n1,l) -> Value(Clo(Var(id),n1,stack))
     | Integer(value) -> Value(Vint(Int(value)))
     | Math(op,n1,n2,l) -> doMath op n1 n2 stack
     | Minus(n1,l) -> let v1 = evalexp n1 stack in
@@ -201,13 +207,14 @@ let rec check_if_malloced loc myheap=
 
                          | _ -> TError)
     | Null -> Value(VLocation(Nulllocation))
-    | FieldLocation(n1,n2,l) -> Value(VLocation(Nulllocation)) (*let v1 = evalexp n1 stack
-                                and v2 = evalexp n2 stack
-                                in
-                                (match v1 with
-                                Value(Location(Object(Int(pos)))) -> 
-                                | _ -> failwith "fail"
-                                )*)
+    | FieldLocation(n1,n2,l) -> let e1 = evalexp n1 stack
+                                         and e2 = evalexp n2 stack
+                                        in
+                                        (match e1,e2 with
+                                            Value(VLocation(Location(Object(Int(pos))))), Value(Vfield(vfield))-> 
+                                            getHeapField pos vfield !realheap
+                                         | _,_ ->  failwith "Error getting field location"
+                                    )
     | Field(id,l) -> Value(Vfield(FieldName(id)))
 and
     doMath op n1 n2 stack =
@@ -240,21 +247,25 @@ and
                           )
 
 
+let print_value value =
+    match value with
+    Value(Vint(Int(myval))) -> print_int myval; print_string "\n"; flush stdout
+    |  Value(Clo(Var(id),n1,stack)) -> print_string ("procedure with parameter " ^ id ^ "\n"); flush stdout
+    | Value(Vfield(FieldName(name))) -> print_string ("Field: " ^ name ^"\n")
+    | Value(VLocation(Location(Object(Int(pos))))) -> print_string ("Variable: ")
+
 let rec print_heap_fields heapValue =
     let rec printField hv = 
     match hv with 
         hd::tl -> 
                 ( match hd with 
                   
-                    Val,tv_ref -> (match !tv_ref with Value(Vint(Int(myval))) -> 
-                                    print_string "value = "; print_int myval; print_string "\n"; flush stdout
-                                    | _ -> ()
-                                  )
-                    | FieldName(name),tv_ref -> (match !tv_ref with Value(Vint(Int(myval))) -> 
-                                                print_string ("field name " ^ name ^ " = "); print_int myval; print_string "\n"; flush stdout;
+                    Val,tv_ref -> 
+                                    print_string "value = "; print_value !tv_ref
+
+                    | FieldName(name),tv_ref -> 
+                                                print_string ("field name " ^ name ^ " = "); print_value !tv_ref;
                                                 printField tl
-                                                | _ -> ()
-                                              )
                                     
                 )
         | [] -> ()
@@ -289,19 +300,28 @@ let print_op op =
 
 
 let change_heap_location stack frame =
-    let rec removestack stack id =
-    match stack with
-    hd::tl -> (match hd with
-            Decl(Env(Var(checkid) ,  Object(Int(pos)))) -> if id = checkid then stack @ tl else removestack (hd::stack) id
-            | _ -> removestack (hd::stack) id
+    let rec removestack newstack id =
+    print_string "CMAOSADSDSA";
+    match newstack with
+
+    hd::tl ->     print_string "CASDSADSADSD";(match hd with
+            Decl(Env(Var(checkid) ,  Object(Int(pos)))) -> if id = checkid then tl else (print_string "milkman2: "; print_int (List.length newstack);print_string "\n";hd:: (removestack tl id))
+            | _ ->  print_string "milkman2: "; print_int (List.length newstack);print_string "\n";hd:: (removestack tl id)
             )
-    | [] -> stack
+    | [] ->    print_string "milkman2: "; print_int (List.length newstack);print_string "\n"; newstack
     in 
     (match frame with
-    Decl(Env(Var(id) ,  Object(Int(newpos)))) ->  frame::(removestack stack id)
+    Decl(Env(Var(id) ,  Object(Int(newpos)))) ->  print_string "milkman: ";print_int newpos; print_string " " ; print_int (List.length stack);print_string "\n";frame::(removestack stack id);
+
     | _ -> failwith "fail")
 
-
+let genNewInHeap pos = 
+    let rec genNew myheap pos = 
+    (match myheap with
+    hd::tl -> if pos = 0 then HeapEntry(ref[])::tl else hd::genNew tl (pos-1)
+    | [] -> []
+    )  
+    in realheap := genNew !realheap pos
 
  let rec print_tree n = 
   (match n with
@@ -389,7 +409,7 @@ let rec process_tree config=
         | Block(command) ->
             (match command with 
             Declaration(id,n1,l) -> let myframe = Decl(Env(Var(id) ,  Object(Int(List.length !realheap)))) 
-                                    in realheap := HeapEntry(ref[Val , ref (Value(VLocation(Nulllocation)))]) :: !realheap;
+                                    in realheap := !realheap @ [HeapEntry(ref[Val , ref (Value(VLocation(Nulllocation)))])];
                                     Conf(Block n1,myframe::stack)
             | VarAssign(id,n1,l) ->  let toSet = evalexp n1 stack
                                   and heaploc = getHeapLocation id stack
@@ -401,7 +421,7 @@ let rec process_tree config=
                                         in
                                         (match e1,e2 with
                                             Value(VLocation(Location(Object(Int(pos))))), Value(Vfield(vfield))-> 
-                                            print_string "hhhhh\n\n";
+                                            print_string "hhhhh\n\n"; 
                                             setHeapField pos (Value(Vfield(vfield))) e3 !realheap ;
                                             Conf(Empty,stack)
                                          | _,_ ->  failwith "Assigning a field to a variable that hasn't been malloced"
@@ -437,10 +457,9 @@ let rec process_tree config=
                                 ))
             | Concurrent(n1,n2,l) -> Conf(Empty,stack)
             | Call(n1,n2,l) -> Conf(Empty,stack)
-            | Malloc(id,l) -> let myframe = Decl(Env(Var(id) ,  Object(Int(List.length !realheap))))
-                              in 
-                              realheap := HeapEntry(ref[]) :: !realheap;
-                              Conf(Empty,(change_heap_location stack myframe))
+            | Malloc(id,l) -> let pos = getHeapLocation id stack in
+                              genNewInHeap pos;
+                              Conf(Empty,stack)
             )
         )
     )
