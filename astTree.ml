@@ -251,8 +251,11 @@ let print_value value =
     match value with
     Value(Vint(Int(myval))) -> print_int myval; print_string "\n"; flush stdout
     |  Value(Clo(Var(id),n1,stack)) -> print_string ("procedure with parameter " ^ id ^ "\n"); flush stdout
-    | Value(Vfield(FieldName(name))) -> print_string ("Field: " ^ name ^"\n")
+    | Value(Vfield(FieldName(name))) -> print_string ("Field: " ^ name ^"\n");flush stdout
+    | Value(Vfield(Val)) -> print_string ("Value: this shouldn't happen as values should be dereferenced\n");flush stdout
     | Value(VLocation(Location(Object(Int(pos))))) -> print_string ("Variable: ")
+    | Value (VLocation Nulllocation) -> print_string "Null value\n";flush stdout
+    | TError -> print_string "Error Value\n";flush stdout
 
 let rec print_heap_fields heapValue =
     let rec printField hv = 
@@ -289,8 +292,6 @@ let rec print_stack stack =
                 )
     | [] -> ()
 
-
-
 let print_op op =
     match op with
     Plus -> "plus"
@@ -298,22 +299,6 @@ let print_op op =
     | Mult -> "mult"
     | Div -> "div"
 
-
-let change_heap_location stack frame =
-    let rec removestack newstack id =
-    print_string "CMAOSADSDSA";
-    match newstack with
-
-    hd::tl ->     print_string "CASDSADSADSD";(match hd with
-            Decl(Env(Var(checkid) ,  Object(Int(pos)))) -> if id = checkid then tl else (print_string "milkman2: "; print_int (List.length newstack);print_string "\n";hd:: (removestack tl id))
-            | _ ->  print_string "milkman2: "; print_int (List.length newstack);print_string "\n";hd:: (removestack tl id)
-            )
-    | [] ->    print_string "milkman2: "; print_int (List.length newstack);print_string "\n"; newstack
-    in 
-    (match frame with
-    Decl(Env(Var(id) ,  Object(Int(newpos)))) ->  print_string "milkman: ";print_int newpos; print_string " " ; print_int (List.length stack);print_string "\n";frame::(removestack stack id);
-
-    | _ -> failwith "fail")
 
 let genNewInHeap pos = 
     let rec genNew myheap pos = 
