@@ -458,7 +458,23 @@ let rec process_tree config=
                                 Empty -> Conf(Empty,(check_and_restore stack))
                                 | Block(command) -> process_tree (Conf(Block(Atom(command,l)),newstack))
                                 ))
-            | Concurrent(n1,n2,l) -> Conf(Empty,stack)
+            | Concurrent(n1,n2,l) ->  ( match Random.bool () with
+                                        true -> 
+                                          let nextCommand = process_tree (Conf(Block(n1),stack)) in
+                                          (match nextCommand with
+                                          Conf(myblock,newstack) -> 
+                                            (match myblock with 
+                                            Empty -> Conf(Block(n2),(check_and_restore stack))
+                                            | Block(command) -> Conf(Block(Concurrent(command,n2,l)),newstack)
+                                            ))
+                                      | false ->
+                                          let nextCommand = process_tree (Conf(Block(n2),stack)) in
+                                          (match nextCommand with
+                                          Conf(myblock,newstack) -> 
+                                            (match myblock with 
+                                            Empty -> Conf(Block(n1),(check_and_restore stack))
+                                            | Block(command) -> Conf(Block(Concurrent(n1,command,l)),newstack)
+                                            )))
             | Call(n1,n2,l) -> let e1 = evalexp n1 stack and
                                e2 = evalexp n2 stack
                                 in
