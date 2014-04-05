@@ -441,7 +441,16 @@ let rec process_tree config=
                                 | Block(command) -> process_tree (Conf(Block(Atom(command,l)),newstack))
                                 ))
             | Concurrent(n1,n2,l) -> Conf(Empty,stack)
-            | Call(n1,n2,l) -> Conf(Empty,stack)
+            | Call(n1,n2,l) -> let e1 = evalexp n1 stack and
+                               e2 = evalexp n2 stack
+                                in
+                                (match e1 with
+                                    Value(Clo(Var(param),body,callstack)) ->  let myframe = FCall((Env(Var(param) ,  Object(Int(List.length !realheap)))),stack) 
+                                                                             in realheap := !realheap @ [HeapEntry(ref[Val , ref (e2)])];
+                                                                             Conf(Block(body),myframe::callstack)
+                                    | _ -> failwith "Calling a function that isn't a function"  
+                                )
+                                 
             | Malloc(id,l) -> let pos = getHeapLocation id stack in
                               genNewInHeap pos;
                               Conf(Empty,stack)
@@ -469,8 +478,6 @@ and process_control config =
             print_newline ();
             print_string "Next Command\n";
             flush stdout;
-            let next = process_tree (Conf(Block(command),stack))
-            in
             print_string "Block(\n";
             flush stdout;
             print_tree command;
