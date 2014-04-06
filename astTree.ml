@@ -152,17 +152,6 @@ let setField heapVal field value=
                         | _ -> failwith "fail"
                         )
         )
-
-let check_and_restore stack =
-    match stack with 
-    hd::tl -> (match hd with
-                Decl(Env(Var(varid),Object(Int(pos)))) -> stack
-                | FCall(Env(Var(varid),Object(Int(pos))),newstack) -> newstack
-
-                ) 
-    | [] -> stack
-
-
 let print_value value =
     match value with
     Value(Vint(Int(myval))) -> print_int myval; print_string "\n"; flush stdout
@@ -172,33 +161,6 @@ let print_value value =
     | Value(VLocation(Location(Object(Int(pos))))) -> print_string ("Variable: ")
     | Value (VLocation Nulllocation) -> print_string "Null value\n";flush stdout
     | TError -> print_string "Error Value\n";flush stdout
-
-let rec getField heapValue field =
-    let rec getFieldHelper hv name= 
-    match hv with 
-        hd::tl -> 
-                ( match hd with 
-                  
-                    Val,tv_ref -> failwith "Error looking up heap field of an unmalloced variable"
-                    | FieldName(matchname),tv_ref -> if name = matchname then (match !tv_ref with Value(v) -> Value(v)
-                                                                                                    | TError -> failwith "fail"
-                                                                                ) else getFieldHelper tl name
-                                    
-                )
-        | [] -> Value(VLocation(Nulllocation))
-    in 
-    match field with
-    FieldName(name) -> ( match heapValue with
-                        HeapEntry e 
-                        -> getFieldHelper !e name
-                       )  
-
-
-let rec  getHeapField pos field  myheap= 
-   match myheap with
-    hd::tl -> if pos = 0 then getField hd field else getHeapField (pos-1) field tl
-    | [] -> failwith "Error getting value"
-
 
 let rec print_heap_fields heapValue =
     let rec printField hv = 
@@ -236,6 +198,45 @@ let rec print_stack stack =
                 )
     | [] -> ()
 
+
+
+let rec check_and_restore stack =
+    match stack with 
+    hd::tl -> (match hd with
+                Decl(Env(Var(varid),Object(Int(pos)))) -> print_string "out\n\n\n";print_stack stack;stack
+                | FCall(Env(Var(varid),Object(Int(pos))),newstack) ->print_string "in\n\n\n"; print_stack newstack;check_and_restore newstack
+
+                ) 
+    | [] -> stack
+
+
+
+
+let rec getField heapValue field =
+    let rec getFieldHelper hv name= 
+    match hv with 
+        hd::tl -> 
+                ( match hd with 
+                  
+                    Val,tv_ref -> failwith "Error looking up heap field of an unmalloced variable"
+                    | FieldName(matchname),tv_ref -> if name = matchname then (match !tv_ref with Value(v) -> Value(v)
+                                                                                                    | TError -> failwith "fail"
+                                                                                ) else getFieldHelper tl name
+                                    
+                )
+        | [] -> Value(VLocation(Nulllocation))
+    in 
+    match field with
+    FieldName(name) -> ( match heapValue with
+                        HeapEntry e 
+                        -> getFieldHelper !e name
+                       )  
+
+
+let rec  getHeapField pos field  myheap= 
+   match myheap with
+    hd::tl -> if pos = 0 then getField hd field else getHeapField (pos-1) field tl
+    | [] -> failwith "Error getting value"
 
 
 
