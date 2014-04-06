@@ -12,6 +12,8 @@ type cmdNode = VarAssign of string * expNode * string  list
         | Call of expNode * expNode * string list
         | Declaration of string * cmdNode * string list
         | Malloc of string * string list
+        | Block of cmdNode
+        | Empty
 
 
 and expNode = Variable of string * string list
@@ -28,10 +30,6 @@ and boolNode = True
         | False
         | Equals of expNode * expNode * string list
         | Lessthan of expNode * expNode * string list
-
-type control = Block of cmdNode
-            | Empty
-
 
 
 type integer = Int of int
@@ -74,9 +72,11 @@ type heapEntry = HeapEntry of (field * taintedvalue ref) list ref
 
 type heap = heapEntry list
 
-type conf = Conf of control * stack
+type conf = Conf of cmdNode * stack
 
 let realheap = ref([] : heap)
+
+
 let rec getHeapLocation id stack =
     match stack with
     hd::tl -> ( match hd with 
@@ -203,11 +203,11 @@ let rec print_stack stack =
 let rec check_and_restore stack =
     match stack with 
     hd::tl -> (match hd with
-                Decl(Env(Var(varid),Object(Int(pos)))) -> print_string "out\n\n\n";print_stack stack;stack
-                | FCall(Env(Var(varid),Object(Int(pos))),newstack) ->print_string "in\n\n\n"; print_stack newstack;check_and_restore newstack
+                Decl(Env(Var(varid),Object(Int(pos)))) -> print_string "out\n\n\n";print_stack tl;tl
+                | FCall(Env(Var(varid),Object(Int(pos))),newstack) ->print_string "in\n\n\n"; print_stack newstack;newstack
 
                 ) 
-    | [] -> stack
+    | [] -> failwith "Stack failure"
 
 
 
@@ -338,6 +338,8 @@ let genNewInHeap pos =
     | Concurrent(n1,n2,l) -> print_string "Concurrent(\n";print_tree n1 ;print_tree n2 ;print_string")\n"; flush stdout;()
     | Call(n1,n2,l) -> print_string "Call(\n";print_exp n1 ;print_exp n2 ;print_string")\n"; flush stdout;()
     | Malloc(id,l) -> print_string "Malloc(\n";print_string id;print_string")\n"; flush stdout;() 
+    | Block(n1) -> print_string "Block(\n";print_tree n1;print_string")\n"; flush stdout;() 
+    | Empty -> ()
     )
 and print_exp e = 
  (match e with
@@ -381,6 +383,8 @@ in
     | Concurrent(n1,n2,l) ->  Concurrent ((decorate_tree n1 start),(decorate_tree n2 start),start)
     | Call(n1,n2,l) -> Call ((decorate_exp n1 start),(decorate_exp n2 start),start)
     | Malloc(id,l) -> if not (List.mem id start) then failwith "variable not declared2" ;n
+    | Block (n1)-> Block(decorate_tree n1 start)
+    | Empty -> n
 )
 and decorate_exp e start= 
  (match e with
@@ -405,12 +409,16 @@ and decorate_bool b start =
 
 let rec process_tree config=
     (match config with
-    Conf(myblock,stack) ->
-        (match myblock with
-        Empty -> Conf(Empty,stack)
-        | Block(command) ->
-            (match command with 
-            Declaration(id,n1,l) -> let myframe = Decl(Env(Var(id) ,  Object(Int(List.length !realheap)))) 
+    Conf(command,stack) ->
+        (match command with
+            Empty -> Conf(Empty,stack)
+            | Block(n1) -> let nextCommand = process_tree (Conf(n1,stack)) in
+                           (match nextCommand with
+                            Conf(Empty,newstack) -> 
+                            Conf(Empty,(check_and_restore newstack)) 
+                            | Conf(comm,newstack) -> Conf(Block comm,newstack)
+                            )
+            |Declaration(id,n1,l) -> let myframe = Decl(Env(Var(id) ,  Object(Int(List.length !realheap)))) 
                                     in realheap := !realheap @ [HeapEntry(ref[Val , ref (Value(VLocation(Nulllocation)))])];
                                     Conf(Block n1,myframe::stack)
             | VarAssign(id,n1,l) ->  let toSet = evalexp n1 stack
@@ -429,26 +437,26 @@ let rec process_tree config=
                                          | _,_ ->  failwith "Assigning a field to a variable that hasn't been malloced"
                                     )
             | Skip -> Conf(Empty,stack)
-            | Sequence(n1,n2,l) -> let nextCommand = process_tree (Conf(Block(n1),stack))
+            | Sequence(n1,n2,l) -> let nextCommand = process_tree (Conf(n1,stack))
                                    in
 
                                    (match nextCommand with
                                     Conf(myblock,newstack) -> 
                                     print_string "shallom\n\n";print_stack stack;print_string "mahalo\n";print_stack newstack;print_string "\n";
                                     (match myblock with 
-                                    Empty -> print_string "ASDADSA\n";Conf(Block(n2),(check_and_restore stack))
-                                    | Block(command) -> Conf(Block(Sequence(command,n2,l)),newstack)
+                                    Empty -> print_string "ASDADSA\n";Conf(n2, newstack)
+                                    | comm -> Conf(Sequence(comm,n2,l),newstack)
                                     ))
             | While(n1,n2,l) -> let eb = evalbool n1 stack
                                 in (match eb with
-                                    Btrue -> Conf(Block(Sequence(n2,While(n1,n2,l),l)),stack)
+                                    Btrue -> Conf(Sequence(n2,While(n1,n2,l),l),stack)
                                     | Bfalse -> Conf(Empty,stack)
                                     | Berror -> failwith "boolean expression error"
                                     ) 
             | If(n1,n2,n3,l) -> print_string "Alex1111\n\n";let eb = evalbool n1 stack
                                 in (match eb with
-                                Btrue -> Conf(Block(n2),stack)
-                                | Bfalse -> Conf(Block(n3),stack)
+                                Btrue -> Conf(n2,stack)
+                                | Bfalse -> Conf(n3,stack)
                                 | Berror -> failwith "boolean expression error" 
                                 )
             | Atom(n1,l) -> let nextCommand = process_tree (Conf(Block(n1),stack))
@@ -456,25 +464,25 @@ let rec process_tree config=
                             (match nextCommand with
                             Conf(myblock,newstack) -> 
                                 (match myblock with 
-                                Empty -> Conf(Empty,(check_and_restore stack))
-                                | Block(command) -> process_tree (Conf(Block(Atom(command,l)),newstack))
+                                Empty -> Conf(Empty,stack)
+                                | comm -> process_tree (Conf(Atom(command,l),newstack))
                                 ))
             | Concurrent(n1,n2,l) ->  ( match Random.bool () with
                                         true -> 
-                                          let nextCommand = process_tree (Conf(Block(n1),stack)) in
+                                          let nextCommand = process_tree (Conf(n1,stack)) in
                                           (match nextCommand with
                                           Conf(myblock,newstack) -> 
                                             (match myblock with 
-                                            Empty -> Conf(Block(n2),(check_and_restore stack))
-                                            | Block(command) -> Conf(Block(Concurrent(command,n2,l)),newstack)
+                                            Empty -> Conf(n2,stack)
+                                            | comm -> Conf(Concurrent(comm,n2,l),newstack)
                                             ))
                                       | false ->
-                                          let nextCommand = process_tree (Conf(Block(n2),stack)) in
+                                          let nextCommand = process_tree (Conf(n2,stack)) in
                                           (match nextCommand with
                                           Conf(myblock,newstack) -> 
                                             (match myblock with 
-                                            Empty -> Conf(Block(n1),(check_and_restore stack))
-                                            | Block(command) -> Conf(Block(Concurrent(n1,command,l)),newstack)
+                                            Empty -> Conf(n1,stack)
+                                            | comm -> Conf(Concurrent(n1,comm,l),newstack)
                                             )))
             | Call(n1,n2,l) -> let e1 = evalexp n1 stack and
                                e2 = evalexp n2 stack
@@ -491,35 +499,32 @@ let rec process_tree config=
                               Conf(Empty,stack)
             )
         )
-    )
 and process_control config =
-    (match config with
+    let next = process_tree config
+        in 
+    (match next with
     Conf(myblock,stack) -> 
         (match myblock with 
         Empty -> 
             print_string "**************Stack and heap dump**************\n";
             print_newline ();
-            print_stack (check_and_restore stack);
+            print_stack stack;
             print_newline ();
             print_string "Next Command\n";
             print_string "Program Terminates\n";
             flush stdout;
-        | Block(command) -> 
+        | comm -> 
             print_string "**************Stack and heap dump here**************\n";
             print_newline ();
             print_string "and the stack is length\n";
             print_int (List.length stack);
             print_stack stack;
             print_newline ();
+
+            flush stdout;
+            print_tree comm;
             print_string "Next Command\n";
             flush stdout;
-            print_string "Block(\n";
-            flush stdout;
-            print_tree command;
-            print_string ")\n";
-            flush stdout;
-            let next = process_tree config
-            in 
             process_control next
         )
     )
@@ -527,4 +532,4 @@ and process_control config =
 
 
 let run tree =
-    process_control (Conf(Block(decorate_tree tree []), []))
+    process_control (Conf((decorate_tree tree []), []))
