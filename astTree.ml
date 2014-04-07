@@ -70,11 +70,11 @@ type taintedvalue =
 
 type heapEntry = HeapEntry of (field * taintedvalue ref) list ref
 
-type heap = heapEntry list
+type heapType = heapEntry list
 
 type conf = Conf of cmdNode * stack
 
-let realheap = ref([] : heap)
+let realheap = ref([] : heapType)
 
 
 let rec getHeapLocation id stack =
@@ -496,7 +496,7 @@ let rec process_tree config=
                                e2 = evalexp n2 stack
                                 in
                                 (match e1 with
-                                    Value(Clo(Var(param),body,callstack)) ->  print_string "Alex\n\n"; print_stack callstack;let myframe = FCall((Env(Var(param) ,  Object(Int(List.length !realheap)))),stack) 
+                                    Value(Clo(Var(param),body,callstack)) -> let myframe = FCall((Env(Var(param) ,  Object(Int(List.length !realheap)))),stack) 
                                                                              in realheap := !realheap @ [HeapEntry(ref[Val , ref (e2)])];
                                                                              Conf(Block(body),myframe::callstack)
                                     | _ -> failwith "Calling a function that isn't a function"  
@@ -527,7 +527,7 @@ and process_control config =
             print_stack stack;
             print_newline ();
             flush stdout;
-            print_string "\nNext Command\n";
+            print_string "\n**************Next Command**************\n";
             print_tree comm;
             print_newline ();
             flush stdout;
@@ -538,7 +538,7 @@ and process_control config =
 
 
 let run tree =
-    print_string "***************Program Starting**********************\n";
+    print_string "**************Program Starting**************\n";
     print_tree tree;
     print_newline ();
     process_control (Conf((decorate_tree tree []), []))
