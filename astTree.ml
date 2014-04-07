@@ -88,18 +88,17 @@ let rec getHeapLocation id stack =
 
 let getValue heapVal loc =
     let rec checkAll hv = 
-    print_string "???\n";
     match hv with 
         hd::tl -> 
                 ( match hd with 
                   
-                    Val,tv_ref ->     print_string "!!!!\n";(match !tv_ref with Value(v) -> Value(v)
+                    Val,tv_ref ->     (match !tv_ref with Value(v) -> Value(v)
                                     | TError -> failwith "fail"
                                     )
-                    | FieldName(name),_ -> print_string "ppppp\n";Value(VLocation(Location(Object(Int(loc)))))
+                    | FieldName(name),_ -> Value(VLocation(Location(Object(Int(loc)))))
                                     
                 )
-        | [] -> print_string "aaaaaa\n";Value(VLocation(Location(Object(Int(loc)))))
+        | [] -> Value(VLocation(Location(Object(Int(loc)))))
     in 
     match heapVal with
     HeapEntry e -> checkAll !e
@@ -141,10 +140,10 @@ let setField heapVal field value=
                     ( match hd with 
                       
                         Val,tv_ref -> failwith "fail"
-                        | FieldName(name),tv_ref -> if name = fieldname then   (tv_ref := value ;print_string "HHHHHHH\n") else setFieldHelper tl fieldname hvref
+                        | FieldName(name),tv_ref -> if name = fieldname then   (tv_ref := value ) else setFieldHelper tl fieldname hvref
                                         
                     )
-            | [] ->  print_string "oookkk";print_int (List.length !hvref);print_string "\n";flush stdout;hvref := (FieldName(fieldname),ref value)::!hvref;realheap := !realheap @ [HeapEntry(hvref)];print_string "oookkk2";print_int (List.length !hvref);print_string "\n";()
+            | [] ->  hvref := (FieldName(fieldname),ref value)::!hvref;realheap := !realheap @ [HeapEntry(hvref)];()
         in 
         (match heapVal with
         HeapEntry e -> (match field with 
@@ -191,9 +190,9 @@ let rec print_heap loc myheap=
 let rec print_stack stack =
     match stack with
     hd::tl -> ( match hd with 
-                Decl(Env(Var(id) ,  Object(Int(loc)))) -> print_string ("Printing heap for declaration" ^ id ^ "\n");
+                Decl(Env(Var(id) ,  Object(Int(loc)))) -> print_string ("Printing heap for declaration " ^ id ^ "\n");
                  print_heap loc !realheap;print_stack tl
-                | FCall(Env(Var(id) ,  Object(Int(loc))),newstack) -> print_string ("Printing heap for function call" ^ id ^ "\n");
+                | FCall(Env(Var(id) ,  Object(Int(loc))),newstack) -> print_string ("Printing heap for function call " ^ id ^ "\n");
                  print_heap loc !realheap;print_stack tl
                 )
     | [] -> ()
@@ -203,8 +202,8 @@ let rec print_stack stack =
 let rec check_and_restore stack =
     match stack with 
     hd::tl -> (match hd with
-                Decl(Env(Var(varid),Object(Int(pos)))) -> print_string "out\n\n\n";print_stack tl;tl
-                | FCall(Env(Var(varid),Object(Int(pos))),newstack) ->print_string "in\n\n\n"; print_stack newstack;newstack
+                Decl(Env(Var(varid),Object(Int(pos)))) -> tl
+                | FCall(Env(Var(varid),Object(Int(pos))),newstack) ->newstack
 
                 ) 
     | [] -> failwith "Stack failure"
@@ -257,8 +256,8 @@ let rec getHeapValue loc myheap=
 
  let rec evalexp exp stack =
     match exp with
-    Variable(id,l) ->  print_string ("looking up " ^ id ^ "\n");let heaploc = getHeapLocation id stack in
-                        print_string "and id is: " ;print_int heaploc; print_string "\n"; flush stdout;
+    Variable(id,l) ->  let heaploc = getHeapLocation id stack in
+                        print_string "\n"; flush stdout;
                         getHeapValue heaploc !realheap
     | Procedure(id,n1,l) -> print_string "Stack should be length ";print_int (List.length stack); print_string "\n";flush stdout;print_stack stack; Value(Clo(Var(id),n1,stack))
     | Integer(value) -> Value(Vint(Int(value)))
@@ -285,10 +284,21 @@ and
             in (match v1,v2 with
                 Value(Vint(Int(value1))),Value(Vint(Int(value2))) ->  Value(Vint(Int(value1 - value2)))
                 |_,_ -> TError )
-    |Plus -> failwith "math op not implemented"
-    |Mult -> failwith "math op not implemented"
-    |Div -> failwith "math op not implemented"
-
+    |Plus -> let v1 = evalexp n1 stack
+            and v2 = evalexp n2 stack
+            in (match v1,v2 with
+                Value(Vint(Int(value1))),Value(Vint(Int(value2))) ->  Value(Vint(Int(value1 + value2)))
+                |_,_ -> TError )
+    |Mult -> let v1 = evalexp n1 stack
+            and v2 = evalexp n2 stack
+            in (match v1,v2 with
+                Value(Vint(Int(value1))),Value(Vint(Int(value2))) ->  Value(Vint(Int(value1 * value2)))
+                |_,_ -> TError )
+    |Div -> let v1 = evalexp n1 stack
+            and v2 = evalexp n2 stack
+            in (match v1,v2 with
+                Value(Vint(Int(value1))),Value(Vint(Int(value2))) ->  Value(Vint(Int(value1 / value2)))
+                |_,_ -> TError )
 
  let rec evalbool bool stack = 
     match bool with 
@@ -311,10 +321,10 @@ and
 
 let print_op op =
     match op with
-    Plus -> "plus"
-    | Sub -> "minus"
-    | Mult -> "mult"
-    | Div -> "div"
+    Plus -> print_string " + "
+    | Sub -> print_string " - "
+    | Mult -> print_string " * "
+    | Div -> print_string " / "
 
 
 let genNewInHeap pos = 
@@ -327,38 +337,38 @@ let genNewInHeap pos =
 
  let rec print_tree n = 
   (match n with
-      Declaration(id,n1,l) -> print_string ("Declaration(" ^ id ^ " in ");print_tree n1;print_string ")\n"; flush stdout;()
-    | VarAssign(id,n1,l) -> print_string ("Variable Assignment (\n" ^ id) ;print_newline();print_exp n1;print_string ")\n"; flush stdout;()
-    | FieldAssign(n1,n2,n3,l) -> print_string "Field Assignment(\n"; print_exp n1; print_exp n2; print_exp n3; print_string ")\n"; flush stdout;()
-    | Skip ->()
-    | Sequence(n1,n2,l) -> print_string "Sequence(\n";print_tree n1;print_tree n2 ;print_string ")\n"; flush stdout;()
-    | While(n1,n2,l) -> print_string "While(\n";print_bool n1 ;print_tree n2 ;print_string")\n"; flush stdout;()
-    | If(n1,n2,n3,l) -> print_string "If(\n";print_bool n1 ; print_string ")Then(\n"; print_tree n2 ;print_string ")Else(\n"; print_tree n3 ;print_string")\n"; flush stdout;()
-    | Atom(n1,l) -> print_string "Atom(\n";print_tree n1 ;print_string")\n"; flush stdout;()
-    | Concurrent(n1,n2,l) -> print_string "Concurrent(\n";print_tree n1 ;print_tree n2 ;print_string")\n"; flush stdout;()
-    | Call(n1,n2,l) -> print_string "Call(\n";print_exp n1 ;print_exp n2 ;print_string")\n"; flush stdout;()
-    | Malloc(id,l) -> print_string "Malloc(\n";print_string id;print_string")\n"; flush stdout;() 
-    | Block(n1) -> print_string "Block(\n";print_tree n1;print_string")\n"; flush stdout;() 
+      Declaration(id,n1,l) -> print_string ("var " ^ id ^ " ;");print_tree n1; flush stdout;()
+    | VarAssign(id,n1,l) -> print_string (id ^ " = ");print_exp n1; flush stdout;()
+    | FieldAssign(n1,n2,n3,l) -> print_exp n1; print_string "."; print_exp n2; print_string " = ";print_exp n3; flush stdout;()
+    | Skip ->print_string "skip";()
+    | Sequence(n1,n2,l) -> print_string "{";print_tree n1;print_string " ; ";print_tree n2 ;print_string "}"; flush stdout;()
+    | While(n1,n2,l) -> print_string "while ";print_bool n1 ;print_tree n2 ;flush stdout;()
+    | If(n1,n2,n3,l) -> print_string "if ";print_bool n1 ; print_string " then "; print_tree n2 ;print_string " else "; print_tree n3 ; flush stdout;()
+    | Atom(n1,l) -> print_string "atom(";print_tree n1 ;print_string") "; flush stdout;()
+    | Concurrent(n1,n2,l) -> print_string "{";print_tree n1 ;print_string " ||| ";print_tree n2 ;print_string"}"; flush stdout;()
+    | Call(n1,n2,l) -> print_exp n1 ;print_string"(";print_exp n2 ;print_string") "; flush stdout;()
+    | Malloc(id,l) -> print_string "malloc(";print_string id;print_string")"; flush stdout;() 
+    | Block(n1) -> print_string "Block<";print_tree n1;print_string">"; flush stdout;() 
     | Empty -> ()
     )
 and print_exp e = 
  (match e with
-   Variable(id,l) -> print_string id;print_newline();flush stdout;()
-    | Procedure(id,n1,l) -> print_string id; print_tree n1;flush stdout;()
+   Variable(id,l) -> print_string id;flush stdout;()
+    | Procedure(id,n1,l) -> print_string ("proc " ^ id ^ ":"); print_tree n1;flush stdout;()
     | Integer(value) -> print_int value;flush stdout;()
-    | Math(op,n1,n2,l) -> print_string ((print_op op) ^ "(\n");print_exp n1;print_exp n2 ;print_string ")\n"; flush stdout;()
-    | Minus(n1,l) -> print_string "Minus(\n" ; print_exp n1;print_string")\n"; flush stdout;()
-    | Null -> ()
-    | FieldLocation(n1,n2,l) -> print_exp n1; print_exp n2 ;()
-    | Field(id,l) -> print_string id;print_newline();flush stdout;()
+    | Math(op,n1,n2,l) -> print_exp n1;print_op op ;print_exp n2 ;flush stdout;()
+    | Minus(n1,l) -> print_string " - " ; print_exp n1;flush stdout;()
+    | Null -> print_string " null ";
+    | FieldLocation(n1,n2,l) -> print_exp n1; print_string ".";print_exp n2 ;()
+    | Field(id,l) -> print_string id;flush stdout;()
  )
 
 and print_bool b =
 (match b with
-	True -> print_string "true\n";flush stdout;()
-    | False -> print_string "false\n";flush stdout;()
-    | Equals(n1,n2,l) -> print_string "Equals(\n";print_exp n1; print_exp n2 ;print_string")\n"; flush stdout;()
-    | Lessthan(n1,n2,l) -> print_string "Less Than(\n" ; print_exp n1 ; print_exp n2 ;print_string")\n"; flush stdout;()
+	True -> print_string " true ";flush stdout;()
+    | False -> print_string " false ";flush stdout;()
+    | Equals(n1,n2,l) -> print_exp n1; print_string " == ";print_exp n2 ; flush stdout;()
+    | Lessthan(n1,n2,l) ->  print_exp n1; print_string " == ";print_exp n2 ; flush stdout;()
 )
 
 let print_scope s =
@@ -431,7 +441,6 @@ let rec process_tree config=
                                         in
                                         (match e1,e2 with
                                             Value(VLocation(Location(Object(Int(pos))))), Value(Vfield(vfield))-> 
-                                            print_string "hhhhh\n\n"; 
                                             setHeapField pos (Value(Vfield(vfield))) e3 !realheap ;
                                             Conf(Empty,stack)
                                          | _,_ ->  failwith "Assigning a field to a variable that hasn't been malloced"
@@ -442,9 +451,8 @@ let rec process_tree config=
 
                                    (match nextCommand with
                                     Conf(myblock,newstack) -> 
-                                    print_string "shallom\n\n";print_stack stack;print_string "mahalo\n";print_stack newstack;print_string "\n";
                                     (match myblock with 
-                                    Empty -> print_string "ASDADSA\n";Conf(n2, newstack)
+                                    Empty -> Conf(n2, newstack)
                                     | comm -> Conf(Sequence(comm,n2,l),newstack)
                                     ))
             | While(n1,n2,l) -> let eb = evalbool n1 stack
@@ -453,7 +461,7 @@ let rec process_tree config=
                                     | Bfalse -> Conf(Empty,stack)
                                     | Berror -> failwith "boolean expression error"
                                     ) 
-            | If(n1,n2,n3,l) -> print_string "Alex1111\n\n";let eb = evalbool n1 stack
+            | If(n1,n2,n3,l) -> let eb = evalbool n1 stack
                                 in (match eb with
                                 Btrue -> Conf(n2,stack)
                                 | Bfalse -> Conf(n3,stack)
@@ -514,16 +522,14 @@ and process_control config =
             print_string "Program Terminates\n";
             flush stdout;
         | comm -> 
-            print_string "**************Stack and heap dump here**************\n";
+            print_string "**************Stack and heap dump**************\n";
             print_newline ();
-            print_string "and the stack is length\n";
-            print_int (List.length stack);
             print_stack stack;
             print_newline ();
-
             flush stdout;
+            print_string "\nNext Command\n";
             print_tree comm;
-            print_string "Next Command\n";
+            print_newline ();
             flush stdout;
             process_control next
         )
@@ -532,4 +538,7 @@ and process_control config =
 
 
 let run tree =
+    print_string "***************Program Starting**********************\n";
+    print_tree tree;
+    print_newline ();
     process_control (Conf((decorate_tree tree []), []))
