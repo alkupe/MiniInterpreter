@@ -11,4 +11,4 @@ all: delete
 	ocamlc -o interpreter astTree.cmo miniLEX.cmo miniYACC.cmo interpreter.cmo
 
 delete:
-	#/bin/rm -f calculator calculator.cmi calculator.cmo miniLEX.cmi miniLEX.cmo miniLEX.ml miniYACC.cmi miniYACC.cmo miniYACC.ml miniYACC.mli makefile~
+	/bin/rm -f interpreter interpreter.cmi interpreter.cmo miniLEX.cmi miniLEX.cmo miniLEX.ml miniYACC.cmi miniYACC.cmo miniYACC.ml miniYACC.mli astTree.cmi astTree.cmo makefile~
