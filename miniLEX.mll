@@ -1,8 +1,7 @@
 (* 
 Alex Halter
 HPL Spring 14
-
-  File miniLEX.mll *)
+File miniLEX.mll *)
 {
 open MiniYACC;;
 
@@ -44,10 +43,10 @@ rule token = parse
   | "atom"        { ATOM }
   | "null"        { NULL }
   | "skip"        { SKIP }
-  | (lower_case)(letter | digit)* as idt
+  | (lower_case)(letter | digit)* as idt (*variables start with a lower case letter*)
                { IDENT idt}
   | (upper_case)(letter | digit)* as fieldidt
-               { FIELD fieldidt}
+               { FIELD fieldidt} (*fields start with an upper case letter*)
   | digits as num
                { INTEGER (int_of_string num) }
   | eof        { raise Eof }

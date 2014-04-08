@@ -1,6 +1,12 @@
-/* File miniYACC.mly */
 
-%{ (* header *)
+%{ 
+(* 
+Alex Halter
+HPL Spring 14
+File miniYACC.mly *)
+
+
+  
  open AstTree
 
 
@@ -24,19 +30,14 @@
 %left ASSIGN
 %left PLUS MINUS       /* lowest precedence */
 %left TIMES DIV             /* medium precedence */
-%left DOT LPAR  LT EQUALS
-%right LBRACK RBRACK
+%left DOT LT EQUALS
 %nonassoc UMINUS           /* highest precedence */
 
 
 %% /* rules */
 prog :
     cmd EOL  {
-
-
-      AstTree.run $1 ;()
-
-
+      AstTree.run $1
     }
   
 

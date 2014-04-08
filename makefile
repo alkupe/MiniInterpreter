@@ -1,3 +1,9 @@
+ 
+#Alex Halter
+#HPL Spring 14
+#makefile
+
+
 all: delete
 
 	ocamllex miniLEX.mll

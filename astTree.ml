@@ -1,3 +1,11 @@
+(* 
+Alex Halter
+HPL Spring 14
+File astTree.ml
+All of the code besides the yacc and lex code is in here.
+ *)
+
+
 
 (*Type for operators *)
 type op = Plus | Sub | Mult | Div
@@ -366,7 +374,7 @@ let gen_new_in_heap pos heap=
     | FieldAssign(n1,n2,n3,l) -> print_expr n1; print_string "."; print_expr n2; print_string " = ";print_expr n3; flush stdout;()
     | Skip ->print_string "skip";()
     | Sequence(n1,n2,l) -> print_string "{";print_tree n1;print_string " ; ";print_tree n2 ;print_string "}"; flush stdout;()
-    | While(n1,n2,l) -> print_string "while ";print_bool n1 ;print_tree n2 ;flush stdout;()
+    | While(n1,n2,l) -> print_string "while ";print_bool n1 ;print_string " " ;print_tree n2 ;flush stdout;()
     | If(n1,n2,n3,l) -> print_string "if ";print_bool n1 ; print_string " then "; print_tree n2 ;print_string " else "; print_tree n3 ; flush stdout;()
     | Atom(n1,l) -> print_string "atom(";print_tree n1 ;print_string") "; flush stdout;()
     | Concurrent(n1,n2,l) -> print_string "{";print_tree n1 ;print_string " ||| ";print_tree n2 ;print_string"}"; flush stdout;()
@@ -392,7 +400,7 @@ and print_bool b =
 	True -> print_string " true ";flush stdout;()
     | False -> print_string " false ";flush stdout;()
     | Equals(n1,n2,l) -> print_expr n1; print_string " == ";print_expr n2 ; flush stdout;()
-    | Lessthan(n1,n2,l) ->  print_expr n1; print_string " == ";print_expr n2 ; flush stdout;()
+    | Lessthan(n1,n2,l) ->  print_expr n1; print_string " < ";print_expr n2 ; flush stdout;()
 )
 
 
@@ -506,7 +514,7 @@ let rec process_tree config=
                                 | Berror -> failwith "Boolean type error"
                                 )
             (* The key with atomic commands is to keep control inside an atomic command, ensuring that control can't return to a potential calling concurrent command *)
-            | Atom(n1,l) -> let nextCommand = process_tree (Conf(Block(n1),stack,heap))
+            | Atom(n1,l) -> let nextCommand = process_tree (Conf(n1,stack,heap))
                             in
                             (match nextCommand with
                             Conf(myblock,newstack,newheap) -> 
@@ -562,7 +570,6 @@ and process_control config =
             print_newline ();
             print_stack stack !heap;
             print_newline ();
-            print_string "Next Command\n";
             print_string "Program Terminates\n";
             flush stdout;
         | comm -> 
@@ -580,7 +587,7 @@ and process_control config =
     )
 
 
-(* Called from the main function in interpreter, entry to the AstTree code *)
+(* Called from the YACC at the top level program entry point, once all the parsing is complete, entry to the AstTree code *)
 let run tree =
     print_string "**************Program Starting**************\n";
     print_tree tree;
