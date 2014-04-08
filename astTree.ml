@@ -173,7 +173,7 @@ let set_field heapVal field value heap=
 
 (* Function to set the heap field of a variable, first by iterating to the right heap position, then calling the helper function to set the field *)
 let rec  set_heap_field pos field value myheap= 
-   let rec iterateHeap pos field value heapref heap =   
+   let rec iterateHeap pos field value heapref heap = 
    (match heap with
     hd::tl -> if pos = 0 then set_field hd field value heapref else iterateHeap (pos-1) field value heapref tl
     | [] -> failwith "Error setting field: heap position doesn't exist")
@@ -222,7 +222,7 @@ let rec print_heap loc myheap=
 let rec print_stack stack heap =
     match stack with
     hd::tl -> ( match hd with 
-                Decl(Env(Var(id) ,  Object(Int(loc)))) -> print_string ("Printing heap for declaration " ^ id ^ "\n");
+                Decl(Env(Var(id) ,  Object(Int(loc)))) -> print_string ("Printing heap for declaration " ^ id ^ " in position ");print_int loc;print_string "\n";
                  print_heap loc heap;print_stack tl heap
                 | FCall(Env(Var(id) ,  Object(Int(loc))),newstack) -> print_string ("Printing heap for function call " ^ id ^ "\n");
                  print_heap loc heap;print_stack tl heap
@@ -274,12 +274,13 @@ let rec  get_heap_field pos field  myheap=
     | [] -> failwith "Error getting value:heap position doesn't exist"
 
 (* Getter for the reserved Val field on the heap *)
-let rec get_heap_value loc myheap=
-    let copy = loc in
+let get_heap_value loc myheap=
+    let rec get_heap_value_helper loc pos myheap = 
     match myheap with 
-    hd::tl -> if loc = 0 then get_value hd copy else get_heap_value (loc-1) tl
+    hd::tl -> if pos = 0 then get_value hd loc else get_heap_value_helper loc (pos-1) tl
     |[] -> TError
-
+    in
+    get_heap_value_helper loc loc myheap
 
 
  (* Evaluation function for expressions, follows assignment specs closely*)
@@ -380,7 +381,7 @@ let gen_new_in_heap pos heap=
     | Concurrent(n1,n2,l) -> print_string "{";print_tree n1 ;print_string " ||| ";print_tree n2 ;print_string"}"; flush stdout;()
     | Call(n1,n2,l) -> print_expr n1 ;print_string"(";print_expr n2 ;print_string") "; flush stdout;()
     | Malloc(id,l) -> print_string "malloc(";print_string id;print_string")"; flush stdout;() 
-    | Block(n1) -> print_string "Block<";print_tree n1;print_string">"; flush stdout;() 
+    | Block(n1) -> print_string "Block(";print_tree n1;print_string")"; flush stdout;() 
     | Empty -> ()
     )
 and print_expr expr = 
@@ -566,9 +567,9 @@ and process_control config =
     Conf(myblock,stack,heap) -> 
         (match myblock with 
         Empty -> 
-            print_string "**************Stack and heap dump**************\n";
+            print_string "****************************\n";
             print_newline ();
-            print_stack stack !heap;
+            print_stack stack !heap; (* this shouldn't print anything *)
             print_newline ();
             print_string "Program Terminates\n";
             flush stdout;
@@ -578,7 +579,7 @@ and process_control config =
             print_stack stack !heap;
             print_newline ();
             flush stdout;
-            print_string "\n**************Next Command**************\n";
+            print_string "\nNext Command\n";
             print_tree comm;
             print_newline ();
             flush stdout;
