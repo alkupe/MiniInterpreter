@@ -617,7 +617,7 @@ and process_control config =
             print_stack stack !heap;
             print_newline ();
             flush stdout;
-            print_string "\nNext Command\n";
+            print_string "\nNext Command\n==>  ";
             print_tree comm;
             print_newline ();
             flush stdout;
@@ -631,5 +631,6 @@ let run tree =
     print_string "**************Program Starting**************\n";
     print_tree tree;
     print_newline ();
+    (* If the static check fails, then print the error and return. Otherwise, run the semantic transition, passing in the tree, an empty stack and heap *)
     if do_static_check_c (decorate_tree tree []) then (print_string "Error: Failed Static Check\n"; flush stdout)
-     else process_control (Conf(tree ,[], ref([] : heapType)))
+     else (print_string "Passed Static Check!\n";process_control (Conf(tree ,[], ref([] : heapType))))
