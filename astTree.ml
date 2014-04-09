@@ -416,11 +416,11 @@ in
     ps s
 
 
-(* Recursive functions to decorate the AST with the declared variables in the scope. Fails if the static scope rules are violated, as specified on pages 3-4 *)
+(* Recursive functions to decorate the AST with the declared variables in the scope. *)
  let rec decorate_tree n scope= 
   (match n with
       Declaration(id,n1,l) -> Declaration(id,(decorate_tree n1 (id::scope)),scope)
-    | VarAssign(id,n1,l) -> if not (List.mem id scope) then  failwith "Scope check error:variable not declared"; VarAssign(id,decorate_exp n1 scope,scope)
+    | VarAssign(id,n1,l) -> VarAssign(id,decorate_exp n1 scope,scope)
     | FieldAssign(n1,n2,n3,l) -> FieldAssign((decorate_exp n1 scope),(decorate_exp n2 scope),(decorate_exp n3 scope),scope) 
     | Skip -> n
     | Sequence(n1,n2,l) -> Sequence ((decorate_tree n1 scope) ,(decorate_tree n2 scope) ,scope)
@@ -429,13 +429,13 @@ in
     | Atom(n1,l) -> Atom((decorate_tree n1 scope),scope)
     | Concurrent(n1,n2,l) ->  Concurrent ((decorate_tree n1 scope),(decorate_tree n2 scope),scope)
     | Call(n1,n2,l) -> Call ((decorate_exp n1 scope),(decorate_exp n2 scope),scope)
-    | Malloc(id,l) -> if not (List.mem id scope) then failwith "Scope check error: variable not declared" ;n
-    | Block (n1)-> Block(decorate_tree n1 scope)
+    | Malloc(id,l) -> Malloc(id,scope)
+    | Block (n1)-> n
     | Empty -> n
 )
 and decorate_exp expr scope= 
  (match expr with
-   Variable(id,l) -> if not (List.mem id scope) then failwith "Scope check error: variable not declared" ;expr
+   Variable(id,l) -> Variable(id,scope)
     | Procedure(id,n1,l) -> Procedure (id,(decorate_tree n1 (id::scope)),scope)
     | Math(op,n1,n2,l) -> Math (op ,(decorate_exp n1 scope),(decorate_exp n2 scope),scope)
     | Integer(value) -> expr
@@ -451,6 +451,44 @@ and decorate_bool b scope =
     | False ->  b
     | Equals(n1,n2,l) -> Equals ((decorate_exp n1 scope),(decorate_exp n2 scope),scope)
     | Lessthan(n1,n2,l) -> Lessthan ((decorate_exp n1 scope),(decorate_exp n2 scope),scope)
+)
+
+
+(* Returns true if the static scope rules are violated, as specified on pages 3-4 *)
+ let rec do_static_check_c n= 
+  (match n with
+      Declaration(id,n1,l) -> do_static_check_c n1
+    | VarAssign(id,n1,l) -> if not (List.mem id l) then true else false or do_static_check_e n1 
+    | FieldAssign(n1,n2,n3,l) -> do_static_check_e n1 or do_static_check_e n2 or do_static_check_e n3
+    | Skip -> false
+    | Sequence(n1,n2,l) -> do_static_check_c n1 or do_static_check_c n2
+    | While(n1,n2,l) -> do_static_check_b n1 or do_static_check_c n2
+    | If(n1,n2,n3,l) -> do_static_check_b n1 or do_static_check_c n2 or  do_static_check_c n3
+    | Atom(n1,l) ->  do_static_check_c n1
+    | Concurrent(n1,n2,l) ->  do_static_check_c n1 or do_static_check_c n2
+    | Call(n1,n2,l) -> do_static_check_e n1 or do_static_check_e n2
+    | Malloc(id,l) -> if not (List.mem id l) then true else false
+    | Block (n1)-> false
+    | Empty -> false
+)
+and do_static_check_e expr= 
+ (match expr with
+   Variable(id,l) -> if not (List.mem id l) then true else false
+    | Procedure(id,n1,l) -> do_static_check_c n1
+    | Math(op,n1,n2,l) -> do_static_check_e n1 or do_static_check_e n2
+    | Integer(value) -> false
+    | Minus(n1,l) -> do_static_check_e n1
+    | Null -> false
+    | FieldLocation(n1,n2,l) -> do_static_check_e n1 or do_static_check_e n2
+    | Field (id,l) -> false
+ )
+
+and do_static_check_b b =
+(match b with
+    True -> false
+    | False ->  false
+    | Equals(n1,n2,l) -> do_static_check_e n1 or do_static_check_e n2
+    | Lessthan(n1,n2,l) -> do_static_check_e n1 or do_static_check_e n2
 )
 
 (* Function to process each node of the tree, iterating through each command type, according to the spec on small-step operational semantics *)
@@ -593,4 +631,5 @@ let run tree =
     print_string "**************Program Starting**************\n";
     print_tree tree;
     print_newline ();
-    process_control (Conf((decorate_tree tree []),[], ref([] : heapType)))
+    if do_static_check_c (decorate_tree tree []) then (print_string "Error: Failed Static Check\n"; flush stdout)
+     else process_control (Conf(tree ,[], ref([] : heapType)))
